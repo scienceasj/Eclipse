@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>일식과 월식 종합 탐구 시뮬레이션</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            background-color: #0c1017;
+            color: #ffffff;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+        h1 { font-size: 24px; margin: 15px 0 25px 0; color: #58a6ff; text-align: center; }
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 98vw;
+            max-width: 1400px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .canvas-container {
+            background-color: #161b22;
+            border: 2px solid #30363d;
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        #spaceContainer { flex: 1.4; }
+        #observerContainer { flex: 0.8; }
+        
+        canvas {
+            background-color: #000000;
+            border-radius: 6px;
+            box-shadow: inset 0 0 30px rgba(255,255,255,0.03);
+        }
+        .control-panel {
+            width: 100%;
+            background-color: #21262d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            font-size: 13.5px;
+            box-sizing: border-box;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        label { font-weight: bold; color: #c9d1d9; width: 110px; }
+        input[type="range"] { flex: 1; cursor: pointer; }
+        
+        /* 버튼들이 가로로 밀리지 않고 1줄로 예쁘게 나오도록 유지 */
+        .btn-group { 
+            display: flex; 
+            gap: 4px; 
+            flex-wrap: nowrap; 
+        }
+        
+        button {
+            background-color: #238636;
+            color: white;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        button:hover { background-color: #2ea043; }
+        button.reset { background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; }
+        button.reset:hover { background-color: #30363d; }
+        button.close-btn { background-color: #da3637; }
+        button.close-btn:hover { background-color: #f85149; }
+        
+        .explanation {
+            margin-top: 12px;
+            padding: 14px;
+            background-color: #1f242c;
+            border-left: 4px solid #58a6ff;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .view-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #58a6ff;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <h1>🌍 일식·월식 시뮬레이션</h1>
+
+    <div class="main-container">
+        <div class="canvas-container" id="spaceContainer">
+            <div class="view-title">🪐 우주 공간 시점 <span style="font-size:12.5px; color:#a8b3be; font-weight:normal;">(지구 표면의 관찰자를 클릭하면 해당 시점의 하늘이 열립니다)</span></div>
+            <canvas id="spaceCanvas" width="750" height="500"></canvas>
+            
+            <div class="control-panel">
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>🌙 공전 제어</label>
+                        <div class="btn-group">
+                            <button id="playPauseBtn" onclick="toggleOrbit()">정지</button>
+                            <button class="reset" onclick="resetToNewMoon()">삭(일식) 정렬</button>
+                            <button class="reset" onclick="resetToFullMoon()">망(월식) 정렬</button>
+                        </div>
+                    </div>
+                    <div class="control-row">
+                        <label>⏩ 공전 속도</label>
+                        <input type="range" id="speedSlider" min="0" max="5" step="0.5" value="1">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>🔄 화면 회전</label>
+                        <input type="range" id="rotateSlider" min="0" max="90" value="0">
+                        <span style="width:35px; text-align:right;"><span id="rotateVal">0</span>°</span>
+                    </div>
+                    <div class="control-row">
+                        <label>📐 달의 궤도 기울기</label>
+                        <input type="range" id="tiltSlider" min="0" max="5" value="0" step="1">
+                        <span style="width:35px; text-align:right;"><span id="tiltVal">0</span>°</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-container hidden" id="observerContainer">
+            <div class="view-title">
+                <span id="observerTitle">👀 선택된 관찰자 시점</span>
+                <button class="close-btn" style="padding:3px 10px; font-size:12px;" onclick="closeObserver()">X 닫기</button>
+            </div>
+            <canvas id="observerCanvas" width="420" height="320"></canvas>
+            <div class="explanation" id="expBox">관찰자를 클릭하여 시점을 활성화하세요.</div>
+        </div>
+    </div>
+
+    <script>
+        const spaceCanvas = document.getElementById('spaceCanvas');
+        const ctxS = spaceCanvas.getContext('2d');
+        const obsCanvas = document.getElementById('observerCanvas');
+        const ctxO = obsCanvas.getContext('2d');
+        
+        const rotateSlider = document.getElementById('rotateSlider');
+        const tiltSlider = document.getElementById('tiltSlider');
+        const speedSlider = document.getElementById('speedSlider');
+        const rotateVal = document.getElementById('rotateVal');
+        const tiltVal = document.getElementById('tiltVal');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const observerContainer = document.getElementById('observerContainer');
+        const expBox = document.getElementById('expBox');
+        const obsTitle = document.getElementById('observerTitle');
+
+        let angle = Math.PI; 
+        let isRunning = true;
+        let selectedObserver = null; 
+        let isDragging = false;
+
+        const sun = { x: -100, y: 250, r: 140 };
+        const earth = { x: 480, y: 250, r: 45 };
+        const orbitRadiusX = 170; 
+
+        const observers = [
+            { id: 'A', label: "관찰자A", emoji: "🧍", rx: -42, ry: 0, color: '#e74c3c' },
+            { id: 'B', label: "관찰자B", emoji: "🚶", rx: -37, ry: -18, color: '#f1c40f' },
+            { id: 'C', label: "관찰자C", emoji: "🧍", rx: 42, ry: 0, color: '#2ecc71' }
+        ];
+
+        function getMousePos(e) {
+            const rect = spaceCanvas.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+
+        spaceCanvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            let rotDeg = parseInt(rotateSlider.value);
+            if (rotDeg > 87) rotDeg = 87; 
+            let rotRad = rotDeg * Math.PI / 180;
+            let viewFactor = Math.cos(rotRad);
+
+            for (let obs of observers) {
+                let obsX = earth.x + obs.rx;
+                let obsY = earth.y + obs.ry * viewFactor;
+                let clickDist = Math.hypot(pos.x - obsX, pos.y - obsY);
+                
+                if (clickDist < 20) { 
+                    selectedObserver = obs.id;
+                    observerContainer.classList.remove('hidden');
+                    draw();
+                    return;
+                }
+            }
+
+            let tiltDeg = parseInt(tiltSlider.value);
+            let mx = Math.cos(angle) * orbitRadiusX;
+            let cameraWarp = (tiltDeg === 0) ? 0 : (Math.cos(angle) * orbitRadiusX * Math.sin(rotRad) * 0.3 * (tiltDeg / 5));
+            let my = Math.sin(angle) * orbitRadiusX * viewFactor + (Math.sin(angle) * tiltDeg * 15 * viewFactor) - cameraWarp;
+            let currentMoonX = earth.x + mx;
+            let currentMoonY = earth.y + my;
+
+            const distToMoon = Math.hypot(pos.x - currentMoonX, pos.y - currentMoonY);
+            if (distToMoon < 25) { 
+                isDragging = true;
+                isRunning = false;
+                playPauseBtn.innerText = "시작";
+            }
+        });
+
+        spaceCanvas.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const pos = getMousePos(e);
+            let dx = pos.x - earth.x;
+            let dy = pos.y - earth.y;
+            angle = Math.atan2(dy, dx);
+            draw();
+        });
+
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        function toggleOrbit() {
+            isRunning = !isRunning;
+            playPauseBtn.innerText = isRunning ? "정지" : "시작";
+        }
+
+        function resetToNewMoon() {
+            angle = Math.PI; 
+            draw();
+        }
+
+        function resetToFullMoon() {
+            angle = 0; 
+            draw();
+        }
+
+        function closeObserver() {
+            selectedObserver = null;
+            observerContainer.classList.add('hidden');
+        }
+
+        function animate() {
+            if (isRunning) {
+                let speed = parseFloat(speedSlider.value) * 0.012;
+                angle -= speed; 
+                if (angle < 0) angle += Math.PI * 2;
+            }
+            rotateVal.innerText = rotateSlider.value;
+            tiltVal.innerText = tiltSlider.value;
+
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        function draw() {
+            drawSpaceView();
+            if (selectedObserver) drawObserverView();
+        }
+
+        function drawSpaceView() {
+            ctxS.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
+
+            let rotDeg = parseInt(rotateSlider.value);
+            if (rotDeg > 87) rotDeg = 87; 
+            
+            let tiltDeg = parseInt(tiltSlider.value);
+            let rotRad = rotDeg * Math.PI / 180;
+            let viewFactor = Math.cos(rotRad); 
+
+            // 오타 변수 원상복구 완료 -> 0도 기울기 시 완벽한 수평선 정렬
+            let mx = Math.cos(angle) * orbitRadiusX;
+            let cameraWarp = (tiltDeg === 0) ? 0 : (Math.cos(angle) * orbitRadiusX * Math.sin(rotRad) * 0.3 * (tiltDeg / 5));
+            let my = Math.sin(angle) * orbitRadiusX * viewFactor + (Math.sin(angle) * tiltDeg * 15 * viewFactor) - cameraWarp;
+            let moonX = earth.x + mx;
+            let moonY = earth.y + my;
+
+            ctxS.fillStyle = 'rgba(255, 240, 180, 0.02)';
+            ctxS.beginPath();
+            ctxS.moveTo(sun.x, sun.y - sun.r * viewFactor);
+            ctxS.lineTo(spaceCanvas.width, 150);
+            ctxS.lineTo(spaceCanvas.width, 350);
+            ctxS.lineTo(sun.x, sun.y + sun.r * viewFactor);
+            ctxS.fill();
+
+            let normAngle = angle % (Math.PI * 2);
+            if (normAngle < 0) normAngle += Math.PI * 2;
+            let isSolarRegion = (normAngle > Math.PI * 0.5 && normAngle < Math.PI * 1.5);
+
+            if (!isSolarRegion) {
+                let eUmbraTopY = earth.y - 12 * viewFactor;
+                let eUmbraBottomY = earth.y + 12 * viewFactor;
+                let ePenumbraTopY = earth.y - 85 * viewFactor;
+                let ePenumbraBottomY = earth.y + 85 * viewFactor;
+
+                ctxS.fillStyle = 'rgba(120, 130, 255, 0.07)';
+                ctxS.beginPath();
+                ctxS.moveTo(earth.x, earth.y - earth.r * viewFactor);
+                ctxS.lineTo(spaceCanvas.width, ePenumbraTopY);
+                ctxS.lineTo(spaceCanvas.width, ePenumbraBottomY);
+                ctxS.lineTo(earth.x, earth.y + earth.r * viewFactor);
+                ctxS.fill();
+
+                ctxS.fillStyle = 'rgba(255, 0, 0, 0.15)';
+                ctxS.beginPath();
+                ctxS.moveTo(earth.x, earth.y - earth.r * viewFactor);
+                ctxS.lineTo(spaceCanvas.width, eUmbraTopY);
+                ctxS.lineTo(spaceCanvas.width, eUmbraBottomY);
+                ctxS.lineTo(earth.x, earth.y + earth.r * viewFactor);
+                ctxS.fill();
+
+                ctxS.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctxS.beginPath(); ctxS.moveTo(earth.x, earth.y - earth.r * viewFactor); ctxS.lineTo(spaceCanvas.width, ePenumbraTopY); ctxS.stroke();
+                ctxS.beginPath(); ctxS.moveTo(earth.x, earth.y + earth.r * viewFactor); ctxS.lineTo(spaceCanvas.width, ePenumbraBottomY); ctxS.stroke();
+
+                ctxS.fillStyle = '#ff6b6b';
+                ctxS.font = '11px Malgun Gothic';
+                ctxS.fillText('◀ 지구 본그림자', earth.x + 80, earth.y + 4);
+                ctxS.fillStyle = '#79a3ff';
+                ctxS.fillText('◀ 지구 반그림자', earth.x + 85, earth.y - 35 * viewFactor);
+                ctxS.fillText('◀ 지구 반그림자', earth.x + 85, earth.y + 42 * viewFactor);
+            } 
+            else {
+                let mUmbraTopY = moonY - 3 * viewFactor;
+                let mUmbraBottomY = moonY + 3 * viewFactor;
+                let mPenumbraTopY = moonY - 55 * viewFactor;
+                let mPenumbraBottomY = moonY + 55 * viewFactor;
+
+                ctxS.fillStyle = 'rgba(200, 200, 200, 0.08)';
+                ctxS.beginPath();
+                ctxS.moveTo(moonX, moonY - 12 * viewFactor);
+                ctxS.lineTo(earth.x, mPenumbraTopY);
+                ctxS.lineTo(earth.x, mPenumbraBottomY);
+                ctxS.lineTo(moonX, moonY + 12 * viewFactor);
+                ctxS.fill();
+
+                ctxS.fillStyle = 'rgba(255, 69, 0, 0.2)';
+                ctxS.beginPath();
+                ctxS.moveTo(moonX, moonY - 12 * viewFactor);
+                ctxS.lineTo(earth.x, mUmbraTopY);
+                ctxS.lineTo(earth.x, mUmbraBottomY);
+                ctxS.lineTo(moonX, moonY + 12 * viewFactor);
+                ctxS.fill();
+
+                ctxS.strokeStyle = 'rgba(255,255,255,0.15)';
+                ctxS.beginPath(); ctxS.moveTo(moonX, moonY - 12 * viewFactor); ctxS.lineTo(earth.x, mPenumbraTopY); ctxS.stroke();
+                ctxS.beginPath(); ctxS.moveTo(moonX, moonY + 12 * viewFactor); ctxS.lineTo(earth.x, mPenumbraBottomY); ctxS.stroke();
+
+                ctxS.fillStyle = '#ffbe76';
+                ctxS.font = '11px Malgun Gothic';
+                ctxS.fillText('달 본그림자 ▶', moonX + 18, moonY - 2);
+                ctxS.fillStyle = '#dcdde1';
+                ctxS.fillText('달 반그림자 ▶', moonX + 18, moonY - 18 * viewFactor);
+            }
+
+            let sunGrad = ctxS.createRadialGradient(sun.x, sun.y, 20, sun.x, sun.y, sun.r);
+            sunGrad.addColorStop(0, '#ffea00');
+            sunGrad.addColorStop(1, '#ff3300');
+            ctxS.fillStyle = sunGrad;
+            ctxS.beginPath();
+            ctxS.arc(sun.x, sun.y, sun.r, 0, Math.PI * 2);
+            ctxS.fill();
+
+            ctxS.strokeStyle = 'rgba(88, 166, 255, 0.35)';
+            ctxS.lineWidth = 1.2;
+            ctxS.beginPath();
+            for (let a = 0; a < Math.PI * 2; a += 0.04) {
+                let rx = Math.cos(a) * orbitRadiusX;
+                let cWarp = (tiltDeg === 0) ? 0 : (Math.cos(a) * orbitRadiusX * Math.sin(rotRad) * 0.3 * (tiltDeg / 5));
+                let ry = Math.sin(a) * orbitRadiusX * viewFactor + (Math.sin(a) * tiltDeg * 15 * viewFactor) - cWarp;
+                if (a === 0) ctxS.moveTo(earth.x + rx, earth.y + ry);
+                else ctxS.lineTo(earth.x + rx, ry + earth.y);
+            }
+            ctxS.closePath();
+            ctxS.stroke();
+
+            let isMoonFront = Math.sin(angle) < 0; 
+            if (isMoonFront) {
+                drawMoon(moonX, moonY);
+                drawEarth(viewFactor);
+            } else {
+                drawEarth(viewFactor);
+                drawMoon(moonX, moonY);
+            }
+
+            observers.forEach(obs => {
+                let obsX = earth.x + obs.rx;
+                let obsY = earth.y + obs.ry * viewFactor;
+
+                if (selectedObserver === obs.id) {
+                    ctxS.fillStyle = 'rgba(255,255,255,0.2)';
+                    ctxS.strokeStyle = '#58a6ff';
+                    ctxS.lineWidth = 1.5;
+                    ctxS.beginPath(); ctxS.arc(obsX, obsY, 14, 0, Math.PI * 2); ctxS.fill(); ctxS.stroke();
+                } else {
+                    ctxS.fillStyle = obs.color;
+                    ctxS.beginPath(); ctxS.arc(obsX, obsY, 3, 0, Math.PI * 2); ctxS.fill();
+                }
+
+                ctxS.font = '16px Arial';
+                ctxS.textAlign = 'center';
+                ctxS.textBaseline = 'middle';
+                ctxS.fillText(obs.emoji, obsX, obsY);
+                
+                ctxS.fillStyle = '#ffffff';
+                ctxS.font = '10px Malgun Gothic';
+                if(obs.id === 'C') {
+                    ctxS.fillText(obs.label, obsX + 25, obsY + 14);
+                } else {
+                    ctxS.fillText(obs.label, obsX - 25, obsY + 14);
+                }
+            });
+        }
+
+        function drawEarth(viewFactor) {
+            ctxS.fillStyle = '#48dbfb'; 
+            ctxS.beginPath();
+            ctxS.arc(earth.x, earth.y, earth.r, Math.PI/2, Math.PI*1.5, false);
+            ctxS.fill();
+
+            ctxS.fillStyle = '#2e5bff'; 
+            ctxS.beginPath();
+            ctxS.arc(earth.x, earth.y, earth.r, -Math.PI/2, Math.PI/2, false);
+            ctxS.fill();
+
+            ctxS.fillStyle = '#ffffff';
+            ctxS.font = 'bold 12px Malgun Gothic';
+            ctxS.textAlign = 'center';
+            ctxS.fillText('지구(Earth)', earth.x, earth.y - earth.r - 12);
+        }
+
+        function drawMoon(x, y) {
+            ctxS.fillStyle = '#dcdde1';
+            ctxS.beginPath();
+            ctxS.arc(x, y, 12, 0, Math.PI * 2);
+            ctxS.fill();
+
+            ctxS.strokeStyle = '#58a6ff';
+            ctxS.lineWidth = 1.5;
+            ctxS.beginPath(); ctxS.arc(x, y, 17, 0, Math.PI * 2); ctxS.stroke();
+        }
+
+        function drawObserverView() {
+            ctxO.clearRect(0, 0, obsCanvas.width, obsCanvas.height);
+            const cx = obsCanvas.width / 2;
+            const cy = obsCanvas.height / 2;
+
+            let normAngle = angle % (Math.PI * 2);
+            if (normAngle < 0) normAngle += Math.PI * 2;
+            
+            let tiltDeg = parseInt(tiltSlider.value);
+            let rotDeg = parseInt(rotateSlider.value);
+            if (rotDeg > 87) rotDeg = 87; 
+            
+            let rotRad = rotDeg * Math.PI / 180;
+            let tiltFactor = Math.cos(tiltDeg * Math.PI / 180);
+            let viewFactor = Math.cos(rotRad);
+
+            let mxSolar = (normAngle - Math.PI) * 230;
+            let alignmentY = Math.sin(normAngle) * tiltDeg * 35 - (Math.cos(normAngle) * rotDeg * 0.9);
+
+            if (selectedObserver === 'A') {
+                obsTitle.innerText = "👀 관찰자A 시점 하늘 (낮-본그림자 축)";
+                ctxO.fillStyle = '#ff4500'; 
+                ctxO.beginPath(); ctxO.arc(cx, cy, 65, 0, Math.PI * 2); ctxO.fill();
+
+                let renderY = cy + (tiltDeg === 0 ? alignmentY : alignmentY + (Math.sin(normAngle) >= 0 ? tiltDeg * 40 : -tiltDeg * 40));
+
+                ctxO.fillStyle = '#000000'; 
+                ctxO.beginPath(); ctxO.arc(cx + mxSolar, renderY, 66, 0, Math.PI * 2); ctxO.fill();
+
+                let distToShadowCenter = Math.hypot(mxSolar, renderY - cy);
+                if (tiltDeg === 0 && distToShadowCenter < 15) {
+                    expBox.innerHTML = "<strong>🧍 관찰자A 하늘: 개기일식 발생!</strong><br>달의 궤도 기울기가 $0^\circ$로 지구 궤도면과 일치합니다. 달이 태양 정중앙을 지나며 완벽하게 가립니다.";
+                } else if (tiltDeg === 0 && distToShadowCenter < 125) {
+                    expBox.innerHTML = "<strong>🌗 관찰자A 하늘: 부분일식 상태</strong><br>궤도 평면이 일치한 상태에서 달이 태양의 일부를 겹쳐 지나고 있습니다.";
+                } else {
+                    expBox.innerHTML = "<strong>☀️ 관찰자A 하늘: 평상시 낮 (일식 없음)</strong><br>달이 삭(New Moon)의 위치에 정렬했으나, **달의 궤도가 기울어져 있어 태양의 위나 아래로 완전히 비껴 지나갑니다.** 따라서 일식이 일어나지 않습니다.";
+                }
+            } 
+            else if (selectedObserver === 'B') {
+                obsTitle.innerText = "👀 관찰자B 시점 하늘 (낮-반그림자 축)";
+                ctxO.fillStyle = '#ff4500'; 
+                ctxO.beginPath(); ctxO.arc(cx, cy, 65, 0, Math.PI * 2); ctxO.fill();
+                
+                let mxOffset = mxSolar - 45; 
+                let myOffset = alignmentY + 15 + (tiltDeg === 0 ? 0 : (Math.sin(normAngle) >= 0 ? tiltDeg * 40 : -tiltDeg * 40));
+
+                ctxO.fillStyle = '#000000'; 
+                ctxO.beginPath(); ctxO.arc(cx + mxOffset, cy + myOffset, 66, 0, Math.PI * 2); ctxO.fill();
+
+                let testDist = Math.hypot(mxOffset, myOffset);
+                if (tiltDeg === 0 && testDist < 125) {
+                    expBox.innerHTML = "<strong>🚶 관찰자B 하늘: 부분일식 발생!</strong><br>궤도 평면이 일치하여 태양의 오른쪽 부분이 초승달 모양으로 깎여 보입니다.";
+                } else {
+                    expBox.innerHTML = "<strong>☀️ 관찰자B 하늘: 평상시 낮 (일식 없음)</strong><br>달의 궤도 기울기로 인해 달이 태양 근처에 접근하지 못하고 완전히 빗겨 지나갑니다.";
+                }
+            } 
+            // 중학생 눈높이 교육용 설명 멘트 완벽 보완 패치 완료
+            else if (selectedObserver === 'C') {
+                obsTitle.innerText = "👀 관찰자C 시점 하늘 (밤-월식 축)";
+                
+                ctxO.strokeStyle = 'rgba(120, 130, 255, 0.2)'; 
+                ctxO.beginPath(); ctxO.arc(cx, cy, 115, 0, Math.PI * 2); ctxO.stroke();
+                ctxO.strokeStyle = 'rgba(255, 69, 0, 0.3)';  
+                ctxO.beginPath(); ctxO.arc(cx, cy, 45, 0, Math.PI * 2); ctxO.stroke();
+
+                let mxLunar = ((normAngle > Math.PI ? normAngle - Math.PI * 2 : normAngle)) * 230;
+                let moonCurrentX = cx + mxLunar;
+                let moonCurrentY = cy - alignmentY - (tiltDeg === 0 ? 0 : (mxLunar >= 0 ? -tiltDeg * 45 : tiltDeg * 45));
+                
+                let distToUmbraCenter = Math.hypot(moonCurrentX - cx, moonCurrentY - cy);
+
+                let isInsideUmbraAll = (distToUmbraCenter <= (45 - 38)); 
+                let isInsideUmbraPart = (distToUmbraCenter > (45 - 38) && distToUmbraCenter < (45 + 38)); 
+                let isInsidePenumbraOnly = (distToUmbraCenter >= (45 + 38) && distToUmbraCenter < (115 + 38));
+
+                if (tiltDeg === 0 && isInsideUmbraAll) {
+                    ctxO.fillStyle = '#8a1c14'; 
+                    ctxO.beginPath(); ctxO.arc(moonCurrentX, moonCurrentY, 38, 0, Math.PI * 2); ctxO.fill();
+                    expBox.innerHTML = "<strong>🔴 관찰자C 하늘: 개기월식 발생(블러드문)!</strong><br>달이 지구의 본그림자 한가운데에 완벽하게 숨었습니다!<br><br><strong>💡 달이 완전히 검게 변하지 않고 붉게 보이는 이유:</strong><br>태양빛은 원래 무지개색을 다 가지고 있습니다. 이 빛이 지구 대기층을 통과할 때, 파란색 빛은 대기에 부딪혀 사방으로 흩어지지만(산란), 진행하는 힘이 아주 강한 **붉은색 빛은 살아남아 대기층을 지나면서 굴절(안쪽으로 꺾임)**됩니다. 이 꺾여 들어온 붉은 빛들이 어두운 그림자 속에 있는 달 표면에 와서 닿은 뒤 우리 눈으로 반사되기 때문에, 개기월식 때 달이 까맣게 지워지지 않고 신비롭고 어두운 붉은 달(적동색)로 보이게 됩니다.";
+                } 
+                else if (tiltDeg === 0 && isInsideUmbraPart) {
+                    ctxO.save();
+                    ctxO.fillStyle = '#bfac56'; 
+                    ctxO.beginPath(); ctxO.arc(moonCurrentX, moonCurrentY, 38, 0, Math.PI * 2); ctxO.fill();
+                    
+                    ctxO.globalCompositeOperation = 'destination-out';
+                    ctxO.fillStyle = '#000000';
+                    ctxO.beginPath(); ctxO.arc(cx, cy, 45, 0, Math.PI * 2); ctxO.fill();
+                    ctxO.restore();
+                    
+                    expBox.innerHTML = "<strong>🧍 관찰자C 하늘: 부분월식 진행</strong><br>달이 우측에서 좌측으로 접근하며 보름달의 **왼쪽 가장자리부터** 본그림자에 가려집니다.";
+                } 
+                else if (tiltDeg === 0 && isInsidePenumbraOnly) {
+                    let ratio = (distToUmbraCenter - 45) / (115 - 45); 
+                    let opacityFactor = 0.15 + ratio * 0.55; 
+                    
+                    ctxO.fillStyle = `rgba(252, 229, 126, ${opacityFactor})`;
+                    ctxO.beginPath(); ctxO.arc(moonCurrentX, moonCurrentY, 38, 0, Math.PI * 2); ctxO.fill();
+                    expBox.innerHTML = "<strong>🌗 관찰자C 하늘: 반그림자 통과 중</strong><br>달이 연한 반그림자에 걸쳐 보름달의 밝기가 눈에 띄게 침침하고 어두워집니다.";
+                } 
+                else {
+                    ctxO.fillStyle = '#fce57e';
+                    ctxO.beginPath(); ctxO.arc(moonCurrentX, moonCurrentY, 38, 0, Math.PI * 2); ctxO.fill();
+                    
+                    if (tiltDeg > 0) {
+                        expBox.innerHTML = "<strong>🌕 관찰자C 하늘: 평상시 보름달 (월식 없음)</strong><br>달이 망(Full Moon) 위치에 와서 지구 바로 뒤편을 지나가지만, **달의 궤도가 기울어져 있어 지구 본그림자와 반그림자 평면의 위(또는 아래)로 완전히 비껴갑니다.** 이 때문에 가려짐이 전혀 없는 둥글고 밝은 보름달만 보입니다.";
+                    } else {
+                        expBox.innerHTML = "<strong>🌕 관찰자C 하늘: 평상시 보름달</strong><br>그림자 영역에서 완벽하게 탈출하여 환하고 노란 보름달이 밤하늘을 비추고 있습니다.";
+                    }
+                }
+            }
+        }
+
+        window.onload = () => { animate(); };
+    </script>
+</body>
+</html>
